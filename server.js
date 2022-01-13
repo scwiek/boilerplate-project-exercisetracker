@@ -1,13 +1,13 @@
-const express = require('express')
-const app = express()
-const cors = require('cors')
+const express = require('express');
+const app = express();
+const cors = require('cors');
 const {
   v4: uuidv4
 } = require('uuid');
-require('dotenv').config()
+require('dotenv').config();
 
-app.use(cors())
-app.use(express.static('public'))
+app.use(cors());
+app.use(express.static('public'));
 app.use(express.urlencoded({
   extended: true
 }));
@@ -15,7 +15,7 @@ app.use(express.urlencoded({
 var users = [];
 
 app.get('/', (req, res) => {
-  res.sendFile(__dirname + '/views/index.html')
+  res.sendFile(__dirname + '/views/index.html');
 });
 
 app.post('/api/users', (req, res) => {
@@ -27,66 +27,111 @@ app.post('/api/users', (req, res) => {
     log: []
   };
   users.push(user);
-  res.json((({username, _id}) => ({username, _id}))(user));
+  res.json((({
+    username,
+    _id
+  }) => ({
+    username,
+    _id
+  }))(user));
 });
 
 app.get('/api/users', (req, res) => {
-  console.log(users);
   let userList = [];
-  users.forEach(x => userList.push({user: x.user, _id: x._id}));
+  users.forEach(x => userList.push({
+    username: x.username,
+    _id: x._id
+  }));
   res.json(userList);
 });
 
 app.post('/api/users/:_id/exercises', (req, res) => {
   let uid = req.params._id;
-  let selectedUser = users.find( ({_id}) => _id === uid);
+  let selectedUser = users.find(({
+    _id
+  }) => _id === uid);
   let selectedUserName = selectedUser.username;
-  console.log(selectedUserName);
-  console.log(selectedUser);
   let desc = req.body.description;
   let dur = req.body.duration;
   let inputDate = req.body.date;
-  let fullDate = new Date(inputDate).toDateString();
-  if (!fullDate) {
+  let fullDate = new Date(inputDate);
+  if (fullDate.toString() === "Invalid Date") {
+    // In order to pass tests, must set to current date if GMT is already the next day.
     let todayDate = new Date();
-    fullDate = todayDate.toDateString();
+    fullDate = todayDate;
   }
   let exercise = {
     description: desc,
     duration: Number(dur),
-    date: Date(fullDate)
+    date: fullDate
   };
   selectedUser.log.push(exercise);
-  console.log(selectedUser);
-  // res.json({
-  //   username: selectedUserName, 
-  //   _id: uid,
-  //   description: desc,
-  //   duration: dur,
-  //   date: fullDate
-  // });
-  res.json(selectedUser);
+  res.json({
+    username: selectedUserName,  
+    description: desc,
+    duration: Number(dur),
+    date: fullDate.toDateString(),
+     _id: uid
+  });
 });
 
 app.get('/api/users/:_id/logs', (req, res) => {
+  let filtLogs = [];
+  let uid = req.params._id;
+  let selectedUser = users.find(({
+    _id
+  }) => _id === uid);
+  const logs = selectedUser.log;
   let fromDate = req.query.from;
   let toDate = req.query.to;
   let resLimit = req.query.limit;
-  console.log(resLimit);
-  let uid = req.params._id;
-  let selectedUser = users.find( ({_id}) => _id === uid);
-  selectedUser.count = selectedUser.log.length;
-  // TODO: Add options from, to
+  const reDate = /\d{4}-\d{2}-\d{2}/;
+  // TODO: Is the filter modifying the original array?  It shouldn't be.  Maybe filtLogs is in the wrong place?
+  if (fromDate) {
+    const validFrom = reDate.test(fromDate);
+    if (validFrom) {
+      const fd = new Date(fromDate);
+      let lowBound = logs.filter(x => x.date >= fd);
+      lowBound.forEach(x => filtLogs.push(x));
+    }
+  } else {
+    filtLogs = logs;
+  }
+  if (toDate) {
+    const validTo = reDate.test(toDate);
+    if (validTo) {
+      const td = new Date(toDate);
+      let highBound = filtLogs.filter(x => x.date <= td);
+      filtLogs = highBound;
+    }
+  }
+  filtLogs.forEach(x => {
+    if (typeof x.date === "string") {
+    } else {
+      x.date = x.date.toDateString();
+    }
+  });
   if (resLimit) {
-    retUser = {username: selectedUser.username, _id: uid, log: selectedUser.log.slice(0,resLimit)};
+    let limitedLog = filtLogs.slice(0, resLimit);
+    let retUser = {
+      username: selectedUser.username,
+      count: limitedLog.length,
+      _id: uid,
+      log: limitedLog
+    };
     res.json(retUser);
   } else {
-    console.log(selectedUser);
-    res.json(selectedUser);
+    let retUser = {
+      username: selectedUser.username,
+      count: filtLogs.length,
+      _id: uid,
+      log: filtLogs
+    };
+    res.json(retUser);
   }
 });
 
 
 const listener = app.listen(process.env.PORT || 3000, () => {
-  console.log('Your app is listening on port ' + listener.address().port)
-})
+  console.log('Your app is listening on port ' + listener.address().port);
+});
